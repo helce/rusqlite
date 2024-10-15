@@ -1,4 +1,3 @@
-use std::iter::IntoIterator;
 use std::os::raw::{c_int, c_void};
 #[cfg(feature = "array")]
 use std::rc::Rc;
@@ -442,7 +441,8 @@ impl Statement<'_> {
     #[inline]
     pub fn parameter_name(&self, index: usize) -> Option<&'_ str> {
         self.stmt.bind_parameter_name(index as i32).map(|name| {
-            str::from_utf8(name.to_bytes()).expect("Invalid UTF-8 sequence in parameter name")
+            name.to_str()
+                .expect("Invalid UTF-8 sequence in parameter name")
         })
     }
 
@@ -606,6 +606,13 @@ impl Statement<'_> {
                     .conn
                     .decode_result(unsafe { ffi::sqlite3_bind_zeroblob(ptr, col as c_int, len) });
             }
+            #[cfg(feature = "functions")]
+            ToSqlOutput::Arg(_) => {
+                return Err(Error::SqliteFailure(
+                    ffi::Error::new(ffi::SQLITE_MISUSE),
+                    Some(format!("Unsupported value \"{value:?}\"")),
+                ));
+            }
             #[cfg(feature = "array")]
             ToSqlOutput::Array(a) => {
                 return self.conn.decode_result(unsafe {
@@ -760,7 +767,7 @@ impl fmt::Debug for Statement<'_> {
         let sql = if self.stmt.is_null() {
             Ok("")
         } else {
-            str::from_utf8(self.stmt.sql().unwrap().to_bytes())
+            self.stmt.sql().unwrap().to_str()
         };
         f.debug_struct("Statement")
             .field("conn", self.conn)
@@ -1353,7 +1360,7 @@ mod test {
     fn test_error_offset() -> Result<()> {
         use crate::ffi::ErrorCode;
         let db = Connection::open_in_memory()?;
-        let r = db.execute_batch("SELECT CURRENT_TIMESTANP;");
+        let r = db.execute_batch("SELECT INVALID_FUNCTION;");
         match r.unwrap_err() {
             Error::SqlInputError { error, offset, .. } => {
                 assert_eq!(error.code, ErrorCode::Unknown);
