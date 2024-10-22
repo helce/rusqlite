@@ -3,12 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - devel_e2k
   pull_request:
     branches:
-      - master
-  schedule:
-    - cron: "00 01 * * *"
+      - devel_e2k
 env:
   RUST_BACKTRACE: short
   # CI builds don't benefit very much from this.
